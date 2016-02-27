@@ -18,7 +18,20 @@ public class LazyFactoryTest {
         }
     }
 
-    private void testMultiThread(final Lazy<Integer> lazy) throws InterruptedException {
+    private static class MyNullSupplier implements Supplier<Integer> {
+
+        private int counter = 0;
+
+        public Integer get() {
+            counter += 1;
+            if (counter == 1)
+                return null;
+            else
+                return counter;
+        }
+    }
+
+    private void testMultiThread(final Lazy<Integer> lazy, boolean nullTest) throws InterruptedException {
 
         Thread[] thread = new Thread[10];
         CyclicBarrier barrier = new CyclicBarrier(10);
@@ -33,8 +46,13 @@ public class LazyFactoryTest {
                     e.printStackTrace();
                 }
 
-                assertEquals((Integer) 1, lazy.get());
-                assertEquals((Integer) 1, lazy.get());
+                if (nullTest) {
+                    assertEquals(null, lazy.get());
+                    assertEquals(null, lazy.get());
+                } else {
+                    assertEquals((Integer) 1, lazy.get());
+                    assertEquals((Integer) 1, lazy.get());
+                }
             });
         }
 
@@ -51,14 +69,16 @@ public class LazyFactoryTest {
     @Test
     public void testCreateSingleThreadLazy() throws Exception {
 
-        MySupplier supplier = new MySupplier();
+        final MySupplier supplier = new MySupplier();
+        assertEquals(0, supplier.counter);
 
         final Lazy<Integer> lazy = LazyFactory.createSingleThreadLazy(supplier);
 
-        assertEquals(0, supplier.counter);
-
         final Integer a = lazy.get();
         final Integer b = lazy.get();
+
+        assertEquals((Integer) 1, a);
+        assertEquals(1, supplier.counter);
 
         assertEquals((Integer) 1, lazy.get());
         assertSame(a, b);
@@ -67,30 +87,54 @@ public class LazyFactoryTest {
     @Test
     public void testCreateSingleThreadLazyWithNull() throws Exception {
 
-        final Supplier<Integer> nullSupplier = () -> null;
+        final MyNullSupplier supplier = new MyNullSupplier();
+        assertEquals(0, supplier.counter);
 
-        final Lazy<Integer> lazy = LazyFactory.createSingleThreadLazy(nullSupplier);
+        final Lazy<Integer> lazy = LazyFactory.createSingleThreadLazy(supplier);
 
-        assertNull(lazy.get());
+        final Integer a = lazy.get();
+        final Integer b = lazy.get();
+
+        assertEquals(null, a);
+        assertEquals(1, supplier.counter);
+
+        assertEquals(null, lazy.get());
+        assertSame(a, b);
     }
 
     @Test
     public void testCreateMultiThreadLazy() throws Exception {
 
-        MySupplier supplier = new MySupplier();
+        final MySupplier supplier = new MySupplier();
+        assertEquals(0, supplier.counter);
 
         final Lazy<Integer> lazy = LazyFactory.createMultiThreadLazy(supplier);
 
-        testMultiThread(lazy);
+        testMultiThread(lazy, false);
+        assertEquals(1, supplier.counter);
+    }
+
+    @Test
+    public void testCreateMultiThreadLazyWithNull() throws Exception {
+
+        final MyNullSupplier supplier = new MyNullSupplier();
+        assertEquals(0, supplier.counter);
+
+        final Lazy<Integer> lazy = LazyFactory.createMultiThreadLazy(supplier);
+
+        testMultiThread(lazy, true);
+        assertEquals(1, supplier.counter);
     }
 
     @Test
     public void testCreateMultiThreadLockFreeLazy() throws Exception {
 
         MySupplier supplier = new MySupplier();
+        assertEquals(0, supplier.counter);
 
         final Lazy<Integer> lazy = LazyFactory.createMultiThreadLockFreeLazy(supplier);
 
-        testMultiThread(lazy);
+        testMultiThread(lazy, false);
+        assertEquals(1, supplier.counter);
     }
 }
