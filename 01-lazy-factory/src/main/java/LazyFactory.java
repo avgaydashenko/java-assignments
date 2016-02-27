@@ -47,15 +47,15 @@ public class LazyFactory {
 
     public static <T> Lazy<T> createMultiThreadLockFreeLazy(final Supplier<T> supplier) {
 
-        return new multiThreadLockFreeLazy<>(supplier);
+        return new MultiThreadLockFreeLazy<>(supplier);
     }
 
-    private static class multiThreadLockFreeLazy<T> implements Lazy<T> {
+    private static class MultiThreadLockFreeLazy<T> implements Lazy<T> {
 
-        private Supplier<T> supplier;
+        private volatile Supplier<T> supplier;
         private final AtomicReference<T> result = new AtomicReference<>(null);
 
-        multiThreadLockFreeLazy(Supplier<T> supplier) {
+        MultiThreadLockFreeLazy(Supplier<T> supplier) {
             this.supplier = supplier;
         }
 
