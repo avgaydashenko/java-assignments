@@ -1,7 +1,0 @@
-process attached
-Wed Mar 16 23:59:40 2016 [MAIN] client.config says aurora.version.source='product'
-Wed Mar 16 23:59:58 2016 [LOCS] 11010= <------------------------------------- error
-Thu Mar 17 00:00:06 2016 [ACCO] AccountListener.OnSubscriptionActive entity=30934768
-Thu Mar 17 00:00:07 2016 [ACCO] AccountListener.OnAccountLevelInfoUpdated account=406554942 currency=RUB accountRegion=2 currentRegion=2 country=RUS
-Thu Mar 17 00:00:07 2016 [ACCO] AccountListener.OnSubscriptionActive entity=406554942
-Thu Mar 17 00:00:16 2016 [ACCO] 4= 
