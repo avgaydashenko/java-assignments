@@ -3,36 +3,35 @@ package ru.spbau.mit;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.List;
 
 public class ClientInformation {
+    private static final int IP_BYTE_NUMBER = 4;
 
-    private InetSocketAddress socketAddress;
-    private List<Integer> filesIds;
+    private byte[] ip;
+    private short port;
 
-    public ClientInformation(InetSocketAddress socketAddress, List<Integer> filesIds) {
-        this.socketAddress = socketAddress;
-        this.filesIds = filesIds;
+    public ClientInformation(byte[] ip, short port) {
+        this.ip = ip;
+        this.port = port;
     }
 
-    public InetSocketAddress getSocketAddress() {
-        return socketAddress;
+    public byte[] getIp() {
+        return ip;
     }
 
-    public List<Integer> getFilesIds() {
-        return filesIds;
+    public short getPort() {
+        return port;
     }
 
     public void writeTo(DataOutputStream dataOutputStream) throws IOException {
-        IOHandler.writeAddress(dataOutputStream, socketAddress);
-        IOHandler.writeCollection(filesIds, DataOutputStream::writeInt, dataOutputStream);
+        dataOutputStream.write(ip);
+        dataOutputStream.writeShort(port);
     }
 
     public static ClientInformation readFrom(DataInputStream dataInputStream) throws IOException {
-        return new ClientInformation(IOHandler.readAddress(dataInputStream),
-                IOHandler.readCollection(new ArrayList<>(), DataInputStream::readInt, dataInputStream)
-        );
+        byte[] ip = new byte[IP_BYTE_NUMBER];
+        dataInputStream.read(ip, 0, IP_BYTE_NUMBER);
+        short port = dataInputStream.readShort();
+        return new ClientInformation(ip, port);
     }
 }

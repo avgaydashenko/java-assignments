@@ -5,170 +5,100 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
-
 import java.io.IOException;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
+import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.junit.Assert.assertEquals;
+
 public class TestTorrent {
-
-    private static final Path EXAMPLE_PATH = Paths.get("src", "test", "resources", "ConnectLog.txt");
-    private static final Path TRACKER_DIR = Paths.get("test", "tracker");
-    private static final Path CLIENT1_DIR = Paths.get("test", "client-01");
-    private static final Path CLIENT2_DIR = Paths.get("test", "client-02");
-    private static final Path CLIENT3_DIR = Paths.get("test", "client-03");
-    private static final long TIME_LIMIT = 70 * 1000L;
-
-    @Test
-    public void testListAndUpload() throws Throwable {
-        try (
-                Tracker tracker = new Tracker(TRACKER_DIR);
-                Client client1 = new Client("localhost", CLIENT1_DIR);
-                Client client2 = new Client("localhost", CLIENT2_DIR)
-        ) {
-            assertAllCollectionEquals(Collections.emptyList(), client1.list(), client2.list());
-
-            FileEntry entry1 = client1.newFile(EXAMPLE_PATH);
-            FileEntry entry2 = client2.newFile(EXAMPLE_PATH);
-            assertNotEquals("Should be different ids", entry1.getId(), entry2.getId());
-
-            assertAllCollectionEquals(Arrays.asList(entry1, entry2), client1.list(), client2.list());
-        }
-    }
-
-    @Test
-    public void testListConsistency() throws Throwable {
-        try (Client client = new Client("localhost", CLIENT1_DIR)) {
-            FileEntry entry;
-            try (Tracker tracker = new Tracker(TRACKER_DIR)) {
-                entry = client.newFile(EXAMPLE_PATH);
-            }
-
-            List<FileEntry> list;
-            try (Tracker tracker = new Tracker(TRACKER_DIR)) {
-                list = client.list();
-            }
-            assertEquals(Collections.singletonList(entry), list);
-        }
-    }
-
-    @Test(timeout = TIME_LIMIT)
-    public void testDownload() throws Throwable {
-        final DownloadWaiter waiter2 = new DownloadWaiter();
-        final DownloadWaiter waiter3 = new DownloadWaiter();
-        FileEntry entry;
-        try (
-                Tracker tracker = new Tracker(TRACKER_DIR);
-                Client client2 = new Client("localhost", CLIENT2_DIR)
-        ) {
-            client2.setCallbacks(waiter2);
-            try (Client client1 = new Client("localhost", CLIENT1_DIR)) {
-                entry = client1.newFile(EXAMPLE_PATH);
-                assertTrue(client2.get(entry.getId()));
-
-                client1.run();
-                client2.run();
-
-                synchronized (waiter2) {
-                    while (!waiter2.ready) {
-                        waiter2.wait();
-                    }
-                }
-            }
-
-            try (Client client3 = new Client("localhost", CLIENT3_DIR)) {
-                client3.setCallbacks(waiter3);
-                assertTrue(client3.get(entry.getId()));
-
-                client3.run();
-                synchronized (waiter3) {
-                    while (!waiter3.ready) {
-                        waiter3.wait();
-                    }
-                }
-            }
-        }
-
-        Path downloadedPath = Paths.get("downloads", Integer.toString(entry.getId()),
-                EXAMPLE_PATH.getFileName().toString());
-        assertTrue("Downloaded file is different!", FileUtils.contentEquals(EXAMPLE_PATH.toFile(),
-                CLIENT2_DIR.resolve(downloadedPath).toFile()));
-        assertTrue("Downloaded file is different!", FileUtils.contentEquals(EXAMPLE_PATH.toFile(),
-                CLIENT3_DIR.resolve(downloadedPath).toFile()));
-    }
+    private static final Path TEST_DIRECTORY = Paths.get("src", "test", "resources", "test");
+    private static final Path DIR_PATH1 = TEST_DIRECTORY.resolve("dir1");
+    private static final Path DIR_PATH2 = TEST_DIRECTORY.resolve("dir2");
+    private static final String FILE_NAME1 = "file1.txt";
+    private static final String FILE_NAME2 = "file2.txt";
+    private static final Path FILE_PATH1 = DIR_PATH1.resolve(FILE_NAME1);
+    private static final Path FILE_PATH2 = DIR_PATH2.resolve(FILE_NAME2);
+    private static final long FILE_LENGTH1 = Constants.BLOCK_SIZE + 2;
+    private static final long FILE_LENGTH2 = 50;
+    private static final short PORT1 = 12345;
+    private static final short PORT2 = 12346;
+    private static final byte[] LOCALHOST = new byte[] {127, 0, 0, 1};
+    private static final long DELAY = 1000;
 
     @Before
+    public void createTestDirectory() throws IOException {
+        Files.createDirectory(TEST_DIRECTORY);
+    }
+
     @After
-    public void clear() throws IOException {
-        clearDirectory("test");
+    public void deleteTestDirectory() throws IOException {
+        FileUtils.deleteDirectory(TEST_DIRECTORY.toFile());
     }
 
-    private void clearDirectory(String name) throws IOException {
-        Path path = Paths.get(name);
-        if (!Files.exists(path)) {
-            return;
-        }
+    @Test
+    public void testList() throws IOException {
+        IdProvider.getInstance().reset();
+        Server server = new ServerMain();
+        server.start();
 
-        Files.walkFileTree(path, new Deleter());
+        Client client1 = new ClientMain(PORT1);
+        client1.start(LOCALHOST);
+        Files.createDirectory(DIR_PATH1);
+        createFile(FILE_PATH1, FILE_LENGTH1);
+        client1.upload(FILE_PATH1.toString());
+
+        Client client2 = new ClientMain(PORT2);
+        client2.start(LOCALHOST);
+        List<FileEntry> filesList = client2.getFilesList();
+        assertEquals(Collections.singletonList(new FileEntry(0, FILE_NAME1, FILE_LENGTH1)), filesList);
+
+        Files.createDirectory(DIR_PATH2);
+        createFile(FILE_PATH2, FILE_LENGTH2);
+        client2.upload(FILE_PATH2.toString());
+        List<FileEntry> filesList2 = client1.getFilesList();
+        assertEquals(Arrays.asList(
+                new FileEntry(0, FILE_NAME1, FILE_LENGTH1),
+                new FileEntry(1, FILE_NAME2, FILE_LENGTH2)
+        ), filesList2);
+
+        client1.stop();
+        client2.stop();
+        server.stop();
     }
 
-    private void assertAllCollectionEquals(Collection<?> expected, Collection<?>... others) {
-        for (Collection<?> other : others) {
-            assertEquals(expected, other);
-        }
+    @Test
+    public void testDownload() throws IOException, InterruptedException {
+        IdProvider.getInstance().reset();
+        Server server = new ServerMain();
+        server.start();
+
+        Client client1 = new ClientMain(PORT1);
+        client1.start(LOCALHOST);
+        Files.createDirectory(DIR_PATH1);
+        createFile(FILE_PATH1, FILE_LENGTH1);
+        client1.upload(FILE_PATH1.toString());
+
+        Client client2 = new ClientMain(PORT2);
+        client2.start(LOCALHOST);
+        Files.createDirectory(DIR_PATH2);
+        Thread.sleep(DELAY);
+        client2.download(0, DIR_PATH2);
+        assertEquals(FILE_LENGTH1, DIR_PATH1.resolve(FILE_NAME1).toFile().length());
+
+        client1.stop();
+        client2.stop();
+        server.stop();
     }
 
-    private static class Deleter extends SimpleFileVisitor<Path> {
-        @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-            Files.delete(file);
-            return super.visitFile(file, attrs);
-        }
-
-        @Override
-        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-            Files.delete(dir);
-            return super.postVisitDirectory(dir, exc);
-        }
-    }
-
-    private static final class DownloadWaiter implements Client.StatusCallbacks {
-        private boolean ready = false;
-
-        private DownloadWaiter() {
-        }
-
-        @Override
-        public void onTrackerUpdated(boolean result, Throwable e) {
-        }
-
-        @Override
-        public void onDownloadIssue(FileEntry entry, String message, Throwable e) {
-        }
-
-        @Override
-        public void onDownloadStart(FileEntry entry) {
-        }
-
-        @Override
-        public void onDownloadPart(FileEntry entry, int partId) {
-        }
-
-        @Override
-        public void onDownloadComplete(FileEntry entry) {
-            synchronized (this) {
-                ready = true;
-                notify();
-            }
-        }
-
-        @Override
-        public void onConnectionServerIssue(Throwable e) {
-        }
+    private void createFile(Path filePath, long fileLength) throws IOException {
+        RandomAccessFile file = new RandomAccessFile(filePath.toFile(), "rw");
+        file.setLength(fileLength);
+        file.close();
     }
 }

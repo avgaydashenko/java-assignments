@@ -1,165 +1,232 @@
 package ru.spbau.mit;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.*;
 
-public abstract class ClientMain {
+public class ClientMain implements Client {
+    private static final String START = "start";
+    private static final String STOP = "stop";
+    private static final String LIST = "list";
+    private static final String DOWNLOAD = "download";
+    private static final String UPLOAD = "upload";
+    private static final String QUIT = "quit";
+    private static final String WRONG_INPUT = "choose one: start | stop | list | download | upload | quit";
+    private static final byte[] LOCALHOST = new byte[] {127, 0, 0, 1};
 
-    private static final int ARG_ACTION = 0;
-    private static final int ARG_ADDRESS = 1;
-    private static final int ARG_1 = 2;
+    private TrackerClient trackerClient = new TrackerClientImplementation();
+    private P2PConnection p2pConnection;
+    private Timer updateTimer = new Timer();
+    private TimerTask updateTask;
+    private short port;
 
-    private static final Client.StatusCallbacks STATUS_CALLBACKS = new Client.StatusCallbacks() {
-        @Override
-        public void onTrackerUpdated(boolean result, Throwable e) {
-            if (result) {
-                System.err.printf("Tracker update successful.\n");
-            } else {
-                System.err.printf("Tracker update failed:\n");
-                if (e != null) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        @Override
-        public void onDownloadIssue(FileEntry entry, String message, Throwable e) {
-            System.err.printf("%d (%s): %s\n", entry.getId(), entry.getName(), message);
-            if (e != null) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void onDownloadStart(FileEntry entry) {
-            System.err.printf("%d (%s): Starting download.\n", entry.getId(), entry.getName());
-        }
-
-        @Override
-        public void onDownloadPart(FileEntry entry, int partId) {
-            System.err.printf("%d (%s): Downloaded part %d.\n", entry.getId(), entry.getName(), partId);
-        }
-
-        @Override
-        public void onDownloadComplete(FileEntry entry) {
-            System.out.printf("%d (%s): Download completed!\n", entry.getId(), entry.getName());
-        }
-
-        @Override
-        public void onConnectionServerIssue(Throwable e) {
-            System.err.printf("P2P server issue, connection abandoned:\n");
-            e.printStackTrace();
-        }
-    };
-
-    public static void main(String[] args) {
-        if (args.length < ARG_ACTION + 1) {
-            System.err.printf("Missing action.\n");
-            helpAndHalt();
-        }
-
-        try {
-            String action = args[ARG_ACTION];
-            switch (action) {
-                case "list":
-                    doList(args);
-                    break;
-                case "get":
-                    doGet(args);
-                    break;
-                case "newfile":
-                    doNewFile(args);
-                    break;
-                case "run":
-                    doRun(args);
-                    break;
-                default:
-                    System.err.printf("Unknown action \"%s\".\n", action);
-                    break;
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    public ClientMain(short port) {
+        this.port = port;
+        p2pConnection = new P2PConnection(port);
     }
 
-    private static void doList(String[] args) throws IOException {
-        if (args.length < ARG_ADDRESS + 1) {
-            System.err.printf("Missing tracker address.\n");
-            helpAndHalt();
-        }
-        String trackerAddress = args[ARG_ADDRESS];
-        try (Client client = new Client(trackerAddress, Paths.get(""))) {
-            client.list().forEach(entry -> System.out.printf(
-                    "%d: %s (%d bytes).\n",
-                    entry.getId(),
-                    entry.getName(),
-                    entry.getSize()
-            ));
-        }
-    }
-
-    private static void doGet(String[] args) throws IOException {
-        if (args.length < ARG_1 + 1) {
-            System.err.printf("Missing file id.\n");
-            helpAndHalt();
-        }
-        String trackerAddress = args[ARG_ADDRESS];
-        int id = Integer.decode(args[ARG_1]);
-        try (Client client = new Client(trackerAddress, Paths.get(""))) {
-            if (client.get(id)) {
-                System.out.printf("New file added to download.\n");
-            } else {
-                System.out.printf("Failed: maybe file is already marked, or tracker hasn't it.");
-            }
-        }
-    }
-
-    private static void doNewFile(String[] args) throws IOException {
-        if (args.length < ARG_1 + 1) {
-            System.err.printf("Missing file path.\n");
-            helpAndHalt();
-        }
-        String trackerAddress = args[ARG_ADDRESS];
-        Path path = Paths.get(args[ARG_1]);
-        try (Client client = new Client(trackerAddress, Paths.get(""))) {
-            client.setCallbacks(STATUS_CALLBACKS);
-            int newFileId = client.newFile(path).getId();
-            System.out.printf("New file uploaded, id is %d.\n", newFileId);
-        }
-    }
-
-    private static void doRun(String[] args) throws IOException {
-        if (args.length < ARG_ADDRESS + 1) {
-            System.err.printf("Missing file path.\n");
-            helpAndHalt();
-        }
-        String trackerAddress = args[ARG_ADDRESS];
-        try {
-            Client client = new Client(trackerAddress, Paths.get(""));
-            client.setCallbacks(STATUS_CALLBACKS);
-            client.run();
-
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                System.out.printf("stopping....\n");
+    @Override
+    public void start(byte[] ip) throws IOException {
+        trackerClient.connect(ip, Constants.SERVER_PORT);
+        p2pConnection.start();
+        updateTask = new TimerTask() {
+            @Override
+            public void run() {
                 try {
-                    client.close();
+                    trackerClient.executeUpdate(port, p2pConnection.getAvailableFileIds());
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-            }));
-        } catch (IOException e) {
-            e.printStackTrace();
+            }
+        };
+        updateTimer.schedule(updateTask, 0, Constants.REST_DELAY);
+    }
+
+    @Override
+    public void stop() throws IOException {
+        trackerClient.disconnect();
+        p2pConnection.stop();
+        p2pConnection.disconnect();
+        updateTask.cancel();
+    }
+
+    @Override
+    public List<FileEntry> getFilesList() throws IOException {
+        return trackerClient.executeList();
+    }
+
+    @Override
+    public void download(int fileId, Path path) throws IOException {
+        List<ClientInformation> clientsList = trackerClient.executeSources(fileId);
+        List<FileEntry> filesList = trackerClient.executeList();
+        FileEntry newFileEntry = null;
+        for (FileEntry fileEntry : filesList) {
+            if (fileEntry.getId() == fileId) {
+                newFileEntry = fileEntry;
+                break;
+            }
+        }
+        assert newFileEntry != null;
+        Path filePath = path.resolve(newFileEntry.getName());
+        File file = filePath.toFile();
+        RandomAccessFile newFile = new RandomAccessFile(file, "rw");
+        long fileSize = newFileEntry.getSize();
+        newFile.setLength(fileSize);
+
+        int partNumber = (int) ((fileSize + Constants.BLOCK_SIZE - 1) / Constants.BLOCK_SIZE);
+        Set<Integer> availableParts = new HashSet<>();
+        while (availableParts.size() != partNumber) {
+            for (ClientInformation clientInformation : clientsList) {
+                p2pConnection.connect(clientInformation.getIp(), clientInformation.getPort());
+                List<Integer> fileParts = p2pConnection.executeStat(fileId);
+                for (int part : fileParts) {
+                    if (!availableParts.contains(part)) {
+                        newFile.seek(part * Constants.BLOCK_SIZE);
+                        int partSize = Constants.BLOCK_SIZE;
+                        if (part == partNumber - 1) {
+                            partSize = (int) (fileSize % Constants.BLOCK_SIZE);
+                        }
+                        byte[] buffer;
+                        try {
+                            buffer = p2pConnection.executeGet(fileId, part);
+                        } catch (IOException e) {
+                            continue;
+                        }
+                        newFile.write(buffer, 0, partSize);
+                        availableParts.add(part);
+                        p2pConnection.addFilePart(fileId, part, filePath);
+                        trackerClient.executeUpdate(port, p2pConnection.getAvailableFileIds());
+                    }
+                }
+
+            }
+        }
+        newFile.close();
+    }
+
+    @Override
+    public void upload(String path) throws IOException {
+        Path p = Paths.get(path);
+        File file = p.toFile();
+        if (!file.exists() || file.isDirectory()) {
+            throw new NoSuchFileException(path);
+        }
+        int id = trackerClient.executeUpload(p.getFileName().toString(), file.length());
+        p2pConnection.addFile(id, p);
+        trackerClient.executeUpdate(port, p2pConnection.getAvailableFileIds());
+    }
+
+    @Override
+    public void save() throws IOException {
+        p2pConnection.save();
+    }
+
+    @Override
+    public void restore() throws IOException {
+        p2pConnection.restore();
+    }
+
+    public static void main(String[] args) {
+        Client client = new ClientMain(Short.valueOf(args[0]));
+        if (Constants.SAVE_PATH.toFile().exists()) {
+            try {
+                client.restore();
+            } catch (IOException e) {
+                System.out.println(e.getMessage());
+            }
+        }
+        Scanner scanner = new Scanner(System.in);
+        while (true) {
+            String line = scanner.nextLine();
+            List<String> arguments = Arrays.asList(line.split(" "));
+            if (arguments.size() == 0) {
+                continue;
+            }
+            switch (arguments.get(0)) {
+                case START:
+                    handleStart(client);
+                    break;
+                case STOP:
+                    handleStop(client);
+                    break;
+                case LIST:
+                    handleList(client);
+                    break;
+                case DOWNLOAD:
+                    handleDownload(client, arguments.subList(1, arguments.size()));
+                    break;
+                case UPLOAD:
+                    handleUpload(client, arguments.subList(1, arguments.size()));
+                    break;
+                case QUIT:
+                    handleQuit(client);
+                    return;
+                default:
+                    System.out.println(WRONG_INPUT);
+            }
         }
     }
 
-    private static void helpAndHalt() {
-        System.err.printf("Available actions:\n");
-        System.err.printf("\tlist <tracker-address>: get available files list from the tracker.\n");
-        System.err.printf("\tget <tracker-address> <id>: mark file with given id for download.\n");
-        System.err.printf("\tnewfile <tracker-address> <path>: upload new file to tracker.\n");
-        System.err.printf("\trun <tracker-address>: start working until interrupted.\n");
+    private static void handleStart(Client client) {
+        try {
+            client.start(LOCALHOST);
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+    }
 
-        System.exit(1);
+    private static void handleStop(Client client) {
+        try {
+            client.stop();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    private static void handleList(Client client) {
+        try {
+            List<FileEntry> filesList = client.getFilesList();
+            for (FileEntry fileEntry : filesList) {
+                System.out.println(fileEntry.getId() + " " + fileEntry.getName() + " " + fileEntry.getSize());
+            }
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    private static void handleDownload(Client client, List<String> arguments) {
+        if (arguments.size() != 2) {
+            System.out.println(WRONG_INPUT);
+            return;
+        }
+        try {
+            client.download(Integer.valueOf(arguments.get(0)), Paths.get(arguments.get(1)));
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    private static void handleUpload(Client client, List<String> arguments) {
+        if (arguments.size() != 1) {
+            System.out.println(WRONG_INPUT);
+            return;
+        }
+        try {
+            client.upload(arguments.get(0));
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    private static void handleQuit(Client client) {
+        try {
+            client.save();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
     }
 }
