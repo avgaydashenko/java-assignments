@@ -18,82 +18,68 @@ import static org.junit.Assert.assertEquals;
 
 public class TestTorrent {
     private static final Path TEST_DIRECTORY = Paths.get("src", "test", "resources", "test");
-    private static final Path DIR_PATH1 = TEST_DIRECTORY.resolve("dir1");
-    private static final Path DIR_PATH2 = TEST_DIRECTORY.resolve("dir2");
-    private static final String FILE_NAME1 = "file1.txt";
-    private static final String FILE_NAME2 = "file2.txt";
-    private static final Path FILE_PATH1 = DIR_PATH1.resolve(FILE_NAME1);
-    private static final Path FILE_PATH2 = DIR_PATH2.resolve(FILE_NAME2);
-    private static final long FILE_LENGTH1 = Constants.BLOCK_SIZE + 2;
-    private static final long FILE_LENGTH2 = 50;
-    private static final short PORT1 = 12345;
-    private static final short PORT2 = 12346;
+    private static final Path DIRECTORY1 = TEST_DIRECTORY.resolve("DIRECTORY1");
+    private static final String FILE1 = "FILE1";
+    private static final Path PATH1 = DIRECTORY1.resolve(FILE1);
+    private static final long LENGTH1 = 37;
+    private static final Path DIRECTORY2 = TEST_DIRECTORY.resolve("DIRECTORY2");
+    private static final String FILE2 = "FILE2";
+    private static final Path PATH2 = DIRECTORY2.resolve(FILE2);
+    private static final long LENGTH2 = 93;
     private static final byte[] LOCALHOST = new byte[] {127, 0, 0, 1};
-    private static final long DELAY = 1000;
+
+    Server server;
+    Client client1, client2;
 
     @Before
     public void createTestDirectory() throws IOException {
         Files.createDirectory(TEST_DIRECTORY);
+
+        Id.getInstance().reset();
+        server = new ServerMain();
+        server.start();
+        client1 = new ClientMain((short) 1);
+        client1.start(LOCALHOST);
+        client2 = new ClientMain((short) 2);
+        client2.start(LOCALHOST);
     }
 
     @After
     public void deleteTestDirectory() throws IOException {
         FileUtils.deleteDirectory(TEST_DIRECTORY.toFile());
+
+        server.stop();
+        client1.stop();
+        client2.stop();
     }
 
     @Test
     public void testList() throws IOException {
-        IdProvider.getInstance().reset();
-        Server server = new ServerMain();
-        server.start();
+        Files.createDirectory(DIRECTORY1);
+        createFile(PATH1, LENGTH1);
+        client1.upload(PATH1.toString());
 
-        Client client1 = new ClientMain(PORT1);
-        client1.start(LOCALHOST);
-        Files.createDirectory(DIR_PATH1);
-        createFile(FILE_PATH1, FILE_LENGTH1);
-        client1.upload(FILE_PATH1.toString());
-
-        Client client2 = new ClientMain(PORT2);
-        client2.start(LOCALHOST);
         List<FileEntry> filesList = client2.getFilesList();
-        assertEquals(Collections.singletonList(new FileEntry(0, FILE_NAME1, FILE_LENGTH1)), filesList);
+        assertEquals(Collections.singletonList(new FileEntry(1, FILE1, LENGTH1)), filesList);
 
-        Files.createDirectory(DIR_PATH2);
-        createFile(FILE_PATH2, FILE_LENGTH2);
-        client2.upload(FILE_PATH2.toString());
+        Files.createDirectory(DIRECTORY2);
+        createFile(PATH2, LENGTH2);
+        client2.upload(PATH2.toString());
+
         List<FileEntry> filesList2 = client1.getFilesList();
-        assertEquals(Arrays.asList(
-                new FileEntry(0, FILE_NAME1, FILE_LENGTH1),
-                new FileEntry(1, FILE_NAME2, FILE_LENGTH2)
-        ), filesList2);
-
-        client1.stop();
-        client2.stop();
-        server.stop();
+        assertEquals(Arrays.asList(new FileEntry(1, FILE1, LENGTH1), new FileEntry(2, FILE2, LENGTH2)), filesList2);
     }
 
     @Test
     public void testDownload() throws IOException, InterruptedException {
-        IdProvider.getInstance().reset();
-        Server server = new ServerMain();
-        server.start();
+        Files.createDirectory(DIRECTORY1);
+        createFile(PATH1, LENGTH1);
+        client1.upload(PATH1.toString());
 
-        Client client1 = new ClientMain(PORT1);
-        client1.start(LOCALHOST);
-        Files.createDirectory(DIR_PATH1);
-        createFile(FILE_PATH1, FILE_LENGTH1);
-        client1.upload(FILE_PATH1.toString());
-
-        Client client2 = new ClientMain(PORT2);
-        client2.start(LOCALHOST);
-        Files.createDirectory(DIR_PATH2);
-        Thread.sleep(DELAY);
-        client2.download(0, DIR_PATH2);
-        assertEquals(FILE_LENGTH1, DIR_PATH1.resolve(FILE_NAME1).toFile().length());
-
-        client1.stop();
-        client2.stop();
-        server.stop();
+        Files.createDirectory(DIRECTORY2);
+        Thread.sleep(1000);
+        client2.download(0, DIRECTORY2);
+        assertEquals(LENGTH1, DIRECTORY1.resolve(FILE1).toFile().length());
     }
 
     private void createFile(Path filePath, long fileLength) throws IOException {

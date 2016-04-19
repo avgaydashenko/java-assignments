@@ -76,7 +76,7 @@ public class TrackerClientHandler implements Runnable {
 
     private void handleUpload(DataInputStream dataInputStream, DataOutputStream dataOutputStream) throws IOException {
         FileEntry fileEntry = FileEntry.readWithoutId(dataInputStream);
-        int id = IdProvider.getInstance().getNextId();
+        int id = Id.getInstance().nextId();
         fileEntry.setId(id);
         filesList.add(fileEntry);
         dataOutputStream.writeInt(id);
