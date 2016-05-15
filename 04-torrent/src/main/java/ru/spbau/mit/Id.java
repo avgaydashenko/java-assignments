@@ -2,7 +2,7 @@ package ru.spbau.mit;
 
 public final class Id {
     private static Id instance;
-    private int currentId = 1;
+    private int currentId = 0;
 
     public static synchronized Id getInstance() {
         if (instance == null) {
@@ -16,6 +16,6 @@ public final class Id {
     }
 
     public synchronized void reset() {
-        currentId = 1;
+        currentId = 0;
     }
 }

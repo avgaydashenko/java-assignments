@@ -60,14 +60,14 @@ public class TestTorrent {
         client1.upload(PATH1.toString());
 
         List<FileEntry> filesList = client2.getFilesList();
-        assertEquals(Collections.singletonList(new FileEntry(1, FILE1, LENGTH1)), filesList);
+        assertEquals(Collections.singletonList(new FileEntry(0, FILE1, LENGTH1)), filesList);
 
         Files.createDirectory(DIRECTORY2);
         createFile(PATH2, LENGTH2);
         client2.upload(PATH2.toString());
 
         List<FileEntry> filesList2 = client1.getFilesList();
-        assertEquals(Arrays.asList(new FileEntry(1, FILE1, LENGTH1), new FileEntry(2, FILE2, LENGTH2)), filesList2);
+        assertEquals(Arrays.asList(new FileEntry(0, FILE1, LENGTH1), new FileEntry(1, FILE2, LENGTH2)), filesList2);
     }
 
     @Test
