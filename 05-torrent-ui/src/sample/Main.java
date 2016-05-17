@@ -5,6 +5,7 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import sample.torrent.ServerMain;
 
 import java.io.IOException;
 
@@ -16,6 +17,9 @@ public class Main extends Application {
         primaryStage.setTitle("Torrent");
         primaryStage.setScene(new Scene(root, 509, 323));
         primaryStage.show();
+
+        Controller.server = new ServerMain();
+        Controller.server.start();
     }
 
     public static void main(String[] args) {

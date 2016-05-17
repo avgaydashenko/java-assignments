@@ -1,5 +1,9 @@
 package sample.torrent;
 
+import javafx.application.Platform;
+import javafx.scene.control.ProgressBar;
+import sample.Controller;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -71,7 +75,7 @@ public class ClientMain implements Client {
             }
         }
         assert newFileEntry != null;
-        Path filePath = path.resolve(newFileEntry.getName());
+        Path filePath = Paths.get(path.toString() + "(1)");
         File file = filePath.toFile();
         RandomAccessFile newFile = new RandomAccessFile(file, "rw");
         long fileSize = newFileEntry.getSize();
@@ -98,6 +102,7 @@ public class ClientMain implements Client {
                         }
                         newFile.write(buffer, 0, partSize);
                         availableParts.add(part);
+                        Controller.progress = availableParts.size() / partNumber;
                         p2pConnection.addFilePart(fileId, part, filePath);
                         trackerClient.executeUpdate(port, p2pConnection.getAvailableFileIds());
                     }
@@ -105,6 +110,7 @@ public class ClientMain implements Client {
 
             }
         }
+        Controller.progress = 1;
         newFile.close();
     }
 

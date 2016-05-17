@@ -1,5 +1,7 @@
 package sample.torrent;
 
+import javafx.scene.control.ProgressBar;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
