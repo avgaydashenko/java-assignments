@@ -12,6 +12,6 @@ public final class Constants {
     public static final int STAT = 1;
     public static final int GET = 2;
     public static final long REST_DELAY = 1000;
-    public static final int BLOCK_SIZE = 10 * (1 << 20);
+    public static final int BLOCK_SIZE = 1 << 10;
     public static final Path SAVE_PATH = Paths.get("src", "main", "resources", "save.txt");
 }

@@ -64,7 +64,7 @@ public class ClientMain implements Client {
     }
 
     @Override
-    public void download(int fileId, Path path) throws IOException {
+    public void download(int fileId, Path path, ProgressBar progressBar) throws IOException {
         List<ClientInformation> clientsList = trackerClient.executeSources(fileId);
         List<FileEntry> filesList = trackerClient.executeList();
         FileEntry newFileEntry = null;
@@ -102,7 +102,18 @@ public class ClientMain implements Client {
                         }
                         newFile.write(buffer, 0, partSize);
                         availableParts.add(part);
-                        Controller.progress = availableParts.size() / partNumber;
+                        Controller.progress = (double) availableParts.size() / partNumber;
+                        if (progressBar != null) {
+                            synchronized (progressBar) {
+                                progressBar.setProgress(Controller.progress);
+                            }
+                            //Platform.runLater(() -> progressBar.setProgress(Controller.progress));
+                        }
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                         p2pConnection.addFilePart(fileId, part, filePath);
                         trackerClient.executeUpdate(port, p2pConnection.getAvailableFileIds());
                     }
@@ -110,7 +121,6 @@ public class ClientMain implements Client {
 
             }
         }
-        Controller.progress = 1;
         newFile.close();
     }
 
@@ -210,7 +220,7 @@ public class ClientMain implements Client {
             return;
         }
         try {
-            client.download(Integer.valueOf(arguments.get(0)), Paths.get(arguments.get(1)));
+            client.download(Integer.valueOf(arguments.get(0)), Paths.get(arguments.get(1)), null);
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }

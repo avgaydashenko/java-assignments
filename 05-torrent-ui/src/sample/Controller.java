@@ -24,7 +24,7 @@ public class Controller {
     public static Server server;
     public static short clientId;
 
-    public static double progress = 0;
+    public static double progress;
 
     public ProgressBar progressBar = new ProgressBar();
     public ListView<String> downloadsList;
@@ -37,8 +37,8 @@ public class Controller {
     }
 
     public void onClickDownloadFile(ActionEvent actionEvent) throws IOException {
-        progress = 0;
-        Timer timer = new Timer();
+        //progress = 0;
+        /*Timer timer = new Timer();
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
@@ -50,8 +50,8 @@ public class Controller {
                     Platform.runLater(() -> progressBar.setProgress(progress));
                 }
             }
-        }, 0, 500);
-        client[clientId].download(0, Paths.get(chosenFile.getText()));
+        }, 0, 500);*/
+        client[clientId].download(0, Paths.get(chosenFile.getText()), progressBar);
         //progressBar.setProgress(1);
     }
 
