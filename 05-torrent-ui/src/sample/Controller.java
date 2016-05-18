@@ -26,7 +26,7 @@ public class Controller {
 
     public static double progress;
 
-    public ProgressBar progressBar = new ProgressBar();
+    public ProgressBar progressBar;
     public ListView<String> downloadsList;
     public Label chosenFile;
     public TextField portField;
@@ -37,22 +37,17 @@ public class Controller {
     }
 
     public void onClickDownloadFile(ActionEvent actionEvent) throws IOException {
-        //progress = 0;
-        /*Timer timer = new Timer();
-        timer.schedule(new TimerTask() {
+        Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
-                if (progress == 1) {
-                    timer.cancel();
-                    return;
-                }
-                synchronized (progressBar) {
-                    Platform.runLater(() -> progressBar.setProgress(progress));
+                try {
+                    client[clientId].download(0, Paths.get(chosenFile.getText()), progressBar);
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
-        }, 0, 500);*/
-        client[clientId].download(0, Paths.get(chosenFile.getText()), progressBar);
-        //progressBar.setProgress(1);
+        });
+        t.start();
     }
 
     public void onClickUploadFile(ActionEvent actionEvent) throws IOException {

@@ -105,20 +105,13 @@ public class ClientMain implements Client {
                         Controller.progress = (double) availableParts.size() / partNumber;
                         if (progressBar != null) {
                             synchronized (progressBar) {
-                                progressBar.setProgress(Controller.progress);
+                                Platform.runLater(() -> progressBar.setProgress(Controller.progress));
                             }
-                            //Platform.runLater(() -> progressBar.setProgress(Controller.progress));
-                        }
-                        try {
-                            Thread.sleep(100);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
                         }
                         p2pConnection.addFilePart(fileId, part, filePath);
                         trackerClient.executeUpdate(port, p2pConnection.getAvailableFileIds());
                     }
                 }
-
             }
         }
         newFile.close();
