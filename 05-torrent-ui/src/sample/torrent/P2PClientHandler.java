@@ -31,7 +31,7 @@ public class P2PClientHandler implements Runnable {
                 dataOutputStream = new DataOutputStream(socket.getOutputStream());
                 dataInputStream = new DataInputStream(socket.getInputStream());
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("P2PClientHandler#run: failed to get stream from the socket.");
                 return;
             }
             int requestType;
@@ -39,7 +39,6 @@ public class P2PClientHandler implements Runnable {
                 try {
                     requestType = dataInputStream.readInt();
                 } catch (EOFException e) {
-                    e.printStackTrace();
                     return;
                 }
                 switch (requestType) {
@@ -53,7 +52,7 @@ public class P2PClientHandler implements Runnable {
                         throw new UnsupportedOperationException();
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("P2PClientHandler#run: failed to handle the request.");
             }
         }
     }
@@ -64,9 +63,11 @@ public class P2PClientHandler implements Runnable {
             dataOutputStream.writeInt(0);
         } else {
             Set<Integer> availableParts = availableFileParts.get(id);
-            dataOutputStream.writeInt(availableParts.size());
+            //dataOutputStream.writeInt(availableParts.size());
+            dataOutputStream.writeInt(1);
             for (Integer part : availableParts) {
                 dataOutputStream.writeInt(part);
+                break;
             }
         }
         dataOutputStream.flush();

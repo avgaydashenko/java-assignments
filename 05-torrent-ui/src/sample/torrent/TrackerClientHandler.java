@@ -32,7 +32,7 @@ public class TrackerClientHandler implements Runnable {
                 dataOutputStream = new DataOutputStream(socket.getOutputStream());
                 dataInputStream = new DataInputStream(socket.getInputStream());
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("TrackerClientHandler#run: failed to get stream from the socket.");
                 return;
             }
             int requestType;
@@ -59,7 +59,7 @@ public class TrackerClientHandler implements Runnable {
                         throw new UnsupportedOperationException();
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("TrackerClientHandler#run: failed to handle the request.");
             }
         }
     }
@@ -126,7 +126,6 @@ public class TrackerClientHandler implements Runnable {
             toRemoveClientTimer.schedule(task, Constants.REST_DELAY);
 
         } catch (IOException e) {
-            e.printStackTrace();
             dataOutputStream.writeBoolean(false);
             dataOutputStream.flush();
             return;

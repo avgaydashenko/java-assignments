@@ -43,7 +43,7 @@ public class Controller {
                 try {
                     client[clientId].download(0, Paths.get(chosenFile.getText()), progressBar);
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    System.out.println("Controller#onClickDownloadFile: failed to download file.");
                 }
             }
         });

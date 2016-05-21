@@ -22,7 +22,7 @@ public abstract class AbstractServer implements Server {
         try {
             serverSocket = new ServerSocket(port);
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("AbstractServer#start: failed to create new ServerSocket, probably the port is wrong.");
         }
         taskExecutor = Executors.newCachedThreadPool();
         taskExecutor.execute(() -> {
@@ -36,7 +36,7 @@ public abstract class AbstractServer implements Server {
                     Socket clientSocket = serverSocket.accept();
                     taskExecutor.submit(handlerFactory.getHandler(clientSocket));
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    System.out.println("AbstractServer#start: failed to create clientSocket, probably the serverSocket is wrong.");
                 }
             }
         });
@@ -51,7 +51,7 @@ public abstract class AbstractServer implements Server {
             taskExecutor.shutdown();
             serverSocket.close();
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("AbstractServer#stop: failed to close serverSocket.");
         }
         serverSocket = null;
     }

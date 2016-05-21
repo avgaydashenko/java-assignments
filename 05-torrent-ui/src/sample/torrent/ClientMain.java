@@ -43,7 +43,7 @@ public class ClientMain implements Client {
                 try {
                     trackerClient.executeUpdate(port, p2pConnection.getAvailableFileIds());
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    System.out.println("ClientMain#start: failed to update trackerClient.");
                 }
             }
         };
