@@ -23,6 +23,7 @@ public abstract class AbstractServer implements Server {
             serverSocket = new ServerSocket(port);
         } catch (IOException e) {
             System.out.println("AbstractServer#start: failed to create new ServerSocket, probably the port is wrong.");
+            System.exit(1);
         }
         taskExecutor = Executors.newCachedThreadPool();
         taskExecutor.execute(() -> {

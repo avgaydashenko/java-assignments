@@ -63,11 +63,11 @@ public class P2PClientHandler implements Runnable {
             dataOutputStream.writeInt(0);
         } else {
             Set<Integer> availableParts = availableFileParts.get(id);
-            //dataOutputStream.writeInt(availableParts.size());
-            dataOutputStream.writeInt(1);
+            dataOutputStream.writeInt(availableParts.size());
+            //dataOutputStream.writeInt(1);
             for (Integer part : availableParts) {
                 dataOutputStream.writeInt(part);
-                break;
+               // break;
             }
         }
         dataOutputStream.flush();

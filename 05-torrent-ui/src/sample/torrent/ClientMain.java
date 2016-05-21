@@ -112,6 +112,7 @@ public class ClientMain implements Client {
                         trackerClient.executeUpdate(port, p2pConnection.getAvailableFileIds());
                     }
                 }
+                p2pConnection.disconnect();
             }
         }
         newFile.close();
